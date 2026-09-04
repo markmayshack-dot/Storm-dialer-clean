@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Storm Dialer</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#08111f;color:#fff}
+    .wrap{max-width:760px;margin:auto;padding:22px}.card{background:#111e33;border:1px solid #233553;border-radius:18px;padding:20px;margin:16px 0}
+    h1{margin:0 0 6px;font-size:32px}.muted{color:#a9b7cc}.status{padding:12px;border-radius:12px;background:#0b1628;margin-top:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+    textarea,input,select{width:100%;background:#0b1628;border:1px solid #304563;color:#fff;padding:14px;border-radius:12px;font-size:16px}
+    textarea{min-height:190px;resize:vertical}.row{display:grid;grid-template-columns:1fr 180px;gap:12px}
+    button{width:100%;border:0;border-radius:12px;padding:15px;font-size:18px;font-weight:800;cursor:pointer;margin-top:12px}
+    .go{background:#25c89a;color:#04130f}.test{background:#3b82f6;color:white}.danger{background:#ef5350;color:white}
+    .ok{color:#65e6ad}.bad{color:#ff8181}
+    @media(max-width:600px){.row{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Storm Dialer</h1>
+  <div class="muted">Fresh build. Numbers must be in E.164 format, e.g. +12125550101.</div>
+
+  <div class="card">
+    <h2>System Check</h2>
+    <button class="test" onclick="checkAuth()">Test Bandwidth Login</button>
+    <div id="auth" class="status">Not tested yet.</div>
+  </div>
+
+  <div class="card">
+    <h2>Lead Dialer</h2>
+    <textarea id="numbers" placeholder="+12125550101&#10;+12125550102"></textarea>
+    <div class="row">
+      <div>
+        <label>Simultaneous calls</label>
+        <select id="concurrency">
+          <option value="1">1 call</option>
+          <option value="2">2 calls</option>
+          <option value="3">3 calls</option>
+        </select>
+      </div>
+      <div>
+        <label>Total leads</label>
+        <input id="count" value="0" readonly />
+      </div>
+    </div>
+    <button class="go" onclick="startCampaign()">▶ Start Dialing</button>
+    <div id="result" class="status">Waiting.</div>
+  </div>
+</div>
+
+<script>
+const numbers = document.getElementById("numbers");
+numbers.addEventListener("input", () => {
+  const list = parseNumbers();
+  document.getElementById("count").value = list.length;
+});
+function parseNumbers(){
+  return numbers.value.split(/\s+/).map(x=>x.trim()).filter(Boolean);
+}
+async function checkAuth(){
+  const box = document.getElementById("auth");
+  box.textContent = "Testing...";
+  try{
+    const r = await fetch("/debug/auth");
+    const data = await r.json();
+    box.className = "status " + (data.ok ? "ok" : "bad");
+    box.textContent = data.ok
+      ? "✓ Bandwidth login accepted."
+      : "✗ " + JSON.stringify(data, null, 2);
+  }catch(e){
+    box.className = "status bad";
+    box.textContent = "✗ " + e.message;
+  }
+}
+async function startCampaign(){
+  const result = document.getElementById("result");
+  const list = parseNumbers();
+  if(!list.length){ result.textContent="Enter at least one number."; return; }
+  result.textContent = "Dialing...";
+  try{
+    const r = await fetch("/api/campaign",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({numbers:list,concurrency:Number(document.getElementById("concurrency").value)})
+    });
+    const data=await r.json();
+    result.className = "status " + (r.ok ? "ok" : "bad");
+    result.textContent = JSON.stringify(data, null, 2);
+  }catch(e){
+    result.className="status bad";
+    result.textContent="✗ "+e.message;
+  }
+}
+</script>
+</body>
+</html>
